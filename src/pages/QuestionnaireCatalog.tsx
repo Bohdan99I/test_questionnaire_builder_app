@@ -12,11 +12,12 @@ import {
 } from "@mui/material";
 import { Edit, Play, Trash2 } from "lucide-react";
 import { useStore } from "../lib/store";
+import { useAuth } from "../lib/auth";
 
 const QuestionnaireCatalog = () => {
   const navigate = useNavigate();
   const { state, dispatch } = useStore();
-
+  const { user } = useAuth();
 
   const userQuestionnaires = state.questionnaires.filter(
     (q) => q.user_id === user?.id

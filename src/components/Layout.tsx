@@ -1,5 +1,5 @@
 import React from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import {
   AppBar,
   Toolbar,
@@ -7,14 +7,40 @@ import {
   Button,
   Container,
   Box,
+  Avatar,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 import { ClipboardList } from "lucide-react";
+import { useAuth } from "../lib/auth";
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+
+  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate("/auth");
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+    handleClose();
+  };
+
   return (
     <>
       <AppBar position="static">
@@ -28,12 +54,38 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           >
             Questionnaire Builder
           </Typography>
-          <Button color="inherit" component={RouterLink} to="/">
-            Catalog
-          </Button>
-          <Button color="inherit" component={RouterLink} to="/create">
-            Create New
-          </Button>
+
+          {user ? (
+            <>
+              <Button color="inherit" component={RouterLink} to="/">
+                Каталог
+              </Button>
+              <Button color="inherit" component={RouterLink} to="/create">
+                Створити новий
+              </Button>
+              <Avatar
+                onClick={handleMenu}
+                sx={{
+                  ml: 2,
+                  cursor: "pointer",
+                  bgcolor: "secondary.main",
+                }}
+              >
+                {user.email?.[0].toUpperCase()}
+              </Avatar>
+              <Menu
+                anchorEl={anchorEl}
+                open={Boolean(anchorEl)}
+                onClose={handleClose}
+              >
+                <MenuItem onClick={handleSignOut}>Вийти</MenuItem>
+              </Menu>
+            </>
+          ) : (
+            <Button color="inherit" component={RouterLink} to="/auth">
+              Увійти
+            </Button>
+          )}
         </Toolbar>
       </AppBar>
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>

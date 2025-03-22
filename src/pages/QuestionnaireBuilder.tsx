@@ -18,7 +18,9 @@ import {
 } from "@mui/material";
 import { Plus, Trash2, GripVertical, Save } from "lucide-react";
 import { useStore } from "../lib/store";
+import { useAuth } from "../lib/auth";
 import {
+  Question,
   QuestionOption as IQuestionOption,
   QuestionType,
 } from "../lib/types";
@@ -34,6 +36,7 @@ const QuestionnaireBuilder = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { state, dispatch } = useStore();
+  const { user } = useAuth();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

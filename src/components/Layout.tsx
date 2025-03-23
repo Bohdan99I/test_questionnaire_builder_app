@@ -10,9 +10,12 @@ import {
   Avatar,
   Menu,
   MenuItem,
+  IconButton,
 } from "@mui/material";
 import { ClipboardList } from "lucide-react";
+import { Sun, Moon } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { useTheme } from "../lib/theme";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,6 +23,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, signOut } = useAuth();
+  const { isDarkMode, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
@@ -54,6 +58,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           >
             Questionnaire Builder
           </Typography>
+
+          <IconButton color="inherit" onClick={toggleTheme} sx={{ mr: 2 }}>
+            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+          </IconButton>
 
           {user ? (
             <>

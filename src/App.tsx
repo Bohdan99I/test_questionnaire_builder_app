@@ -1,7 +1,7 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { ThemeProvider, CssBaseline } from "@mui/material";
-import theme from "./theme";
+import { ThemeProvider as MuiThemeProvider, CssBaseline } from "@mui/material";
+import getTheme from "./theme";
 import Layout from "./components/Layout";
 import QuestionnaireCatalog from "./pages/QuestionnaireCatalog";
 import QuestionnaireBuilder from "./pages/QuestionnaireBuilder";
@@ -9,6 +9,7 @@ import QuestionnaireRun from "./pages/QuestionnaireRun";
 import Auth from "./pages/Auth";
 import { StoreProvider } from "./lib/store";
 import { AuthProvider, useAuth } from "./lib/auth";
+import { ThemeProvider, useTheme } from "./lib/theme";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -24,9 +25,12 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-function App() {
+function AppContent() {
+  const { isDarkMode } = useTheme();
+  const theme = getTheme(isDarkMode);
+
   return (
-    <ThemeProvider theme={theme}>
+    <MuiThemeProvider theme={theme}>
       <CssBaseline />
       <StoreProvider>
         <AuthProvider>
@@ -64,6 +68,14 @@ function App() {
           </BrowserRouter>
         </AuthProvider>
       </StoreProvider>
+    </MuiThemeProvider>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
     </ThemeProvider>
   );
 }

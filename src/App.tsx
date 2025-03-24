@@ -32,51 +32,51 @@ function AppContent() {
   return (
     <MuiThemeProvider theme={theme}>
       <CssBaseline />
-      <StoreProvider>
-        <AuthProvider>
-          <BrowserRouter>
-            <Layout>
-              <Routes>
-                <Route path="/auth" element={<Auth />} />
-                <Route
-                  path="/"
-                  element={
-                    <ProtectedRoute>
-                      <QuestionnaireCatalog />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/create"
-                  element={
-                    <ProtectedRoute>
-                      <QuestionnaireBuilder />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/edit/:id"
-                  element={
-                    <ProtectedRoute>
-                      <QuestionnaireBuilder />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route path="/run/:id" element={<QuestionnaireRun />} />
-              </Routes>
-            </Layout>
-          </BrowserRouter>
-        </AuthProvider>
-      </StoreProvider>
+      <BrowserRouter>
+        <Layout>
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <QuestionnaireCatalog />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/create"
+              element={
+                <ProtectedRoute>
+                  <QuestionnaireBuilder />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/edit/:id"
+              element={
+                <ProtectedRoute>
+                  <QuestionnaireBuilder />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/run/:id" element={<QuestionnaireRun />} />
+          </Routes>
+        </Layout>
+      </BrowserRouter>
     </MuiThemeProvider>
   );
 }
 
 function App() {
   return (
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
+    <StoreProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ThemeProvider>
+    </StoreProvider>
   );
 }
 

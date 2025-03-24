@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Card,
@@ -8,14 +8,14 @@ import {
   Typography,
   Alert,
   Container,
-} from '@mui/material';
-import { useAuth } from '../lib/auth';
-import { useNavigate } from 'react-router-dom';
+} from "@mui/material";
+import { useAuth } from "../lib/auth";
+import { useNavigate } from "react-router-dom";
 
 const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
@@ -27,13 +27,13 @@ const Auth = () => {
     try {
       if (isSignUp) {
         await signUp(email, password);
-        navigate('/');
+        navigate("/");
       } else {
         await signIn(email, password);
-        navigate('/');
+        navigate("/");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Помилка автентифікації');
+      setError(err instanceof Error ? err.message : "Помилка автентифікації");
     }
   };
 
@@ -43,7 +43,7 @@ const Auth = () => {
         <Card>
           <CardContent>
             <Typography variant="h5" component="h1" gutterBottom align="center">
-              {isSignUp ? 'Реєстрація' : 'Вхід'}
+              {isSignUp ? "Реєстрація" : "Вхід"}
             </Typography>
 
             {error && (
@@ -71,7 +71,7 @@ const Auth = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                autoComplete={isSignUp ? "new-password" : "current-password"}
               />
               <Button
                 type="submit"
@@ -79,13 +79,12 @@ const Auth = () => {
                 variant="contained"
                 sx={{ mt: 3, mb: 2 }}
               >
-                {isSignUp ? 'Зареєструватися' : 'Увійти'}
+                {isSignUp ? "Зареєструватися" : "Увійти"}
               </Button>
-              <Button
-                fullWidth
-                onClick={() => setIsSignUp(!isSignUp)}
-              >
-                {isSignUp ? 'Вже маєте акаунт? Увійти' : 'Немає акаунту? Зареєструватися'}
+              <Button fullWidth onClick={() => setIsSignUp(!isSignUp)}>
+                {isSignUp
+                  ? "Вже маєте акаунт? Увійти"
+                  : "Немає акаунту? Зареєструватися"}
               </Button>
             </Box>
           </CardContent>

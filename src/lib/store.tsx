@@ -50,7 +50,18 @@ function loadState(): State {
   try {
     const savedState = localStorage.getItem(STORAGE_KEY);
     if (savedState) {
-      return JSON.parse(savedState);
+      const parsedState = JSON.parse(savedState);
+      // Перевірка структури даних
+      if (
+        Array.isArray(parsedState.users) &&
+        Array.isArray(parsedState.questionnaires) &&
+        Array.isArray(parsedState.questions) &&
+        Array.isArray(parsedState.questionOptions) &&
+        Array.isArray(parsedState.responses) &&
+        Array.isArray(parsedState.answers)
+      ) {
+        return parsedState;
+      }
     }
   } catch (error) {
     console.error("Error loading state:", error);
@@ -74,6 +85,10 @@ function reducer(state: State, action: Action): State {
       newState = { ...state, currentUser: action.payload };
       break;
     case "ADD_USER":
+      // Перевірка на дублікати email
+      if (state.users.some((user) => user.email === action.payload.email)) {
+        throw new Error("Користувач з таким email вже існує");
+      }
       newState = { ...state, users: [...state.users, action.payload] };
       break;
     case "ADD_QUESTIONNAIRE":
@@ -99,6 +114,23 @@ function reducer(state: State, action: Action): State {
         questions: state.questions.filter(
           (q) => q.questionnaire_id !== action.payload
         ),
+        questionOptions: state.questionOptions.filter(
+          (o) =>
+            !state.questions.some(
+              (q) =>
+                q.questionnaire_id === action.payload && q.id === o.question_id
+            )
+        ),
+        responses: state.responses.filter(
+          (r) => r.questionnaire_id !== action.payload
+        ),
+        answers: state.answers.filter(
+          (a) =>
+            !state.responses.some(
+              (r) =>
+                r.questionnaire_id === action.payload && r.id === a.response_id
+            )
+        ),
       };
       break;
     case "ADD_QUESTION":
@@ -119,6 +151,7 @@ function reducer(state: State, action: Action): State {
         questionOptions: state.questionOptions.filter(
           (o) => o.question_id !== action.payload
         ),
+        answers: state.answers.filter((a) => a.question_id !== action.payload),
       };
       break;
     case "ADD_OPTION":
@@ -141,6 +174,11 @@ function reducer(state: State, action: Action): State {
         questionOptions: state.questionOptions.filter(
           (o) => o.id !== action.payload
         ),
+        answers: state.answers.map((a) => ({
+          ...a,
+          selected_options:
+            a.selected_options?.filter((id) => id !== action.payload) || null,
+        })),
       };
       break;
     case "ADD_RESPONSE":
@@ -167,6 +205,14 @@ const StoreContext = createContext<{
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState, loadState);
+
+  useEffect(() => {
+    // Відновлення сесії користувача при завантаженні
+    const savedState = loadState();
+    if (savedState.currentUser) {
+      dispatch({ type: "SET_CURRENT_USER", payload: savedState.currentUser });
+    }
+  }, []);
 
   return (
     <StoreContext.Provider value={{ state, dispatch }}>

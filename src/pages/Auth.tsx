@@ -20,18 +20,34 @@ const Auth = () => {
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
 
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePassword = (password: string): boolean => {
+    return password.length >= 6;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     try {
+      if (!validateEmail(email)) {
+        throw new Error("Введіть коректну email адресу");
+      }
+
+      if (!validatePassword(password)) {
+        throw new Error("Пароль повинен містити мінімум 6 символів");
+      }
+
       if (isSignUp) {
         await signUp(email, password);
-        navigate("/");
       } else {
         await signIn(email, password);
-        navigate("/");
       }
+      navigate("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Помилка автентифікації");
     }
@@ -62,6 +78,12 @@ const Auth = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
+                error={!!error && !validateEmail(email)}
+                helperText={
+                  !!error && !validateEmail(email)
+                    ? "Введіть коректну email адресу"
+                    : ""
+                }
               />
               <TextField
                 margin="normal"
@@ -72,6 +94,12 @@ const Auth = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete={isSignUp ? "new-password" : "current-password"}
+                error={!!error && !validatePassword(password)}
+                helperText={
+                  !!error && !validatePassword(password)
+                    ? "Пароль повинен містити мінімум 6 символів"
+                    : ""
+                }
               />
               <Button
                 type="submit"
@@ -81,7 +109,13 @@ const Auth = () => {
               >
                 {isSignUp ? "Зареєструватися" : "Увійти"}
               </Button>
-              <Button fullWidth onClick={() => setIsSignUp(!isSignUp)}>
+              <Button
+                fullWidth
+                onClick={() => {
+                  setIsSignUp(!isSignUp);
+                  setError(null);
+                }}
+              >
                 {isSignUp
                   ? "Вже маєте акаунт? Увійти"
                   : "Немає акаунту? Зареєструватися"}

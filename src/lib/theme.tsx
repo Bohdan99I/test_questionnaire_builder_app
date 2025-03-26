@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { ThemeProvider as MuiThemeProvider } from "@mui/material";
+import getTheme from "../theme";
 
 interface ThemeContextType {
   isDarkMode: boolean;
@@ -21,9 +23,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setIsDarkMode((prev) => !prev);
   };
 
+  const theme = getTheme(isDarkMode);
+
   return (
     <ThemeContext.Provider value={{ isDarkMode, toggleTheme }}>
-      {children}
+      <MuiThemeProvider theme={theme}>{children}</MuiThemeProvider>
     </ThemeContext.Provider>
   );
 }

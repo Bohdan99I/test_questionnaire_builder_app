@@ -19,11 +19,7 @@ import {
 import { Plus, Trash2, GripVertical, Save } from "lucide-react";
 import { useStore } from "../lib/store";
 import { useAuth } from "../lib/auth";
-import {
-  Question,
-  QuestionOption as IQuestionOption,
-  QuestionType,
-} from "../lib/types";
+import { QuestionOption as IQuestionOption, QuestionType } from "../lib/types";
 
 interface QuestionData {
   id: string;
@@ -139,7 +135,6 @@ const QuestionnaireBuilder = () => {
         throw new Error("Додайте хоча б одне питання");
       }
 
-      // Перевірка валідності питань
       for (const question of questions) {
         if (!question.text.trim()) {
           throw new Error("Всі питання повинні мати текст");
@@ -163,7 +158,6 @@ const QuestionnaireBuilder = () => {
       const questionnaireId = id || crypto.randomUUID();
 
       if (id) {
-        // Оновлення існуючого опитувальника
         dispatch({
           type: "UPDATE_QUESTIONNAIRE",
           payload: {
@@ -177,7 +171,6 @@ const QuestionnaireBuilder = () => {
           },
         });
       } else {
-        // Створення нового опитувальника
         dispatch({
           type: "ADD_QUESTIONNAIRE",
           payload: {
@@ -190,7 +183,6 @@ const QuestionnaireBuilder = () => {
         });
       }
 
-      // Видалення старих питань та опцій
       if (id) {
         const oldQuestions = state.questions.filter(
           (q) => q.questionnaire_id === id
@@ -200,7 +192,6 @@ const QuestionnaireBuilder = () => {
         });
       }
 
-      // Створення нових питань
       questions.forEach((question, index) => {
         const questionId = question.id;
 
@@ -215,7 +206,6 @@ const QuestionnaireBuilder = () => {
           },
         });
 
-        // Створення варіантів відповідей
         question.options.forEach((option, optionIndex) => {
           dispatch({
             type: "ADD_OPTION",

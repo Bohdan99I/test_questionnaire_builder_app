@@ -10,7 +10,7 @@ import {
   Box,
   Alert,
 } from "@mui/material";
-import { Edit, Play, Trash2 } from "lucide-react";
+import { Edit, Play, Trash2, BarChart } from "lucide-react";
 import { useStore } from "../lib/store";
 import { useAuth } from "../lib/auth";
 
@@ -110,6 +110,16 @@ const QuestionnaireCatalog = () => {
                       onClick={() => navigate(`/run/${questionnaire.id}`)}
                     >
                       Пройти
+                    </Button>
+                    <Button
+                      size="small"
+                      color="info"
+                      startIcon={<BarChart size={16} />}
+                      onClick={() =>
+                        navigate(`/statistics/${questionnaire.id}`)
+                      }
+                    >
+                      Статистика
                     </Button>
                     <Button
                       size="small"

@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 import QuestionnaireCatalog from "./pages/QuestionnaireCatalog";
 import QuestionnaireBuilder from "./pages/QuestionnaireBuilder";
 import QuestionnaireRun from "./pages/QuestionnaireRun";
+import QuestionnaireStatistics from "./pages/QuestionnaireStatistics";
 import Auth from "./pages/Auth";
 import { StoreProvider } from "./lib/store";
 import { AuthProvider, useAuth } from "./lib/auth";
@@ -59,6 +60,14 @@ function AppContent() {
             element={
               <ProtectedRoute>
                 <QuestionnaireRun />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/statistics/:id"
+            element={
+              <ProtectedRoute>
+                <QuestionnaireStatistics />
               </ProtectedRoute>
             }
           />

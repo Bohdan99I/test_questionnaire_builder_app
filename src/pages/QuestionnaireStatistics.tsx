@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useMemo } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   Typography,
   Paper,
@@ -8,7 +8,7 @@ import {
   Grid,
   Card,
   CardContent,
-} from '@mui/material';
+} from "@mui/material";
 import {
   BarChart,
   Bar,
@@ -20,48 +20,53 @@ import {
   PieChart,
   Pie,
   Cell,
-} from 'recharts';
-import { ArrowLeft } from 'lucide-react';
-import { useStore } from '../lib/store';
+} from "recharts";
+import { ArrowLeft } from "lucide-react";
+import { useStore } from "../lib/store";
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
 
 const QuestionnaireStatistics = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { state } = useStore();
 
-  const questionnaire = state.questionnaires.find(q => q.id === id);
+  const questionnaire = state.questionnaires.find((q) => q.id === id);
   const questions = state.questions
-    .filter(q => q.questionnaire_id === id)
+    .filter((q) => q.questionnaire_id === id)
     .sort((a, b) => a.order - b.order);
-  const responses = state.responses.filter(r => r.questionnaire_id === id);
+  const responses = state.responses.filter((r) => r.questionnaire_id === id);
 
   const averageTimeSeconds = useMemo(() => {
     if (responses.length === 0) return 0;
-    const totalTime = responses.reduce((sum, r) => sum + (r.time_taken_seconds || 0), 0);
+    const totalTime = responses.reduce(
+      (sum, r) => sum + (r.time_taken_seconds || 0),
+      0
+    );
     return Math.round(totalTime / responses.length);
   }, [responses]);
 
   const questionStatistics = useMemo(() => {
-    return questions.map(question => {
-      const answers = state.answers.filter(a => a.question_id === question.id);
-      
-      if (question.question_type === 'text') {
+    return questions.map((question) => {
+      const answers = state.answers.filter(
+        (a) => a.question_id === question.id
+      );
+
+      if (question.question_type === "text") {
         return {
           question: question.question_text,
           type: question.question_type,
           totalAnswers: answers.length,
-          answers: answers.map(a => a.answer_text).filter(Boolean),
+          answers: answers.map((a) => a.answer_text).filter(Boolean),
         };
       }
 
       const options = state.questionOptions
-        .filter(o => o.question_id === question.id)
+        .filter((o) => o.question_id === question.id)
         .sort((a, b) => a.order - b.order);
 
-      const optionCounts = options.map(option => {
-        const count = answers.filter(a => 
+      const optionCounts = options.map((option) => {
+        const count = answers.filter((a) =>
           a.selected_options?.includes(option.id)
         ).length;
 
@@ -86,11 +91,8 @@ const QuestionnaireStatistics = () => {
 
   return (
     <div>
-      <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Button
-          startIcon={<ArrowLeft />}
-          onClick={() => navigate('/')}
-        >
+      <Box sx={{ mb: 4, display: "flex", alignItems: "center", gap: 2 }}>
+        <Button startIcon={<ArrowLeft />} onClick={() => navigate("/")}>
           Назад до каталогу
         </Button>
         <Typography variant="h4" component="h1">
@@ -113,7 +115,8 @@ const QuestionnaireStatistics = () => {
                 Всього відповідей: {responses.length}
               </Typography>
               <Typography variant="body1">
-                Середній час проходження: {Math.floor(averageTimeSeconds / 60)} хв {averageTimeSeconds % 60} сек
+                Середній час проходження: {Math.floor(averageTimeSeconds / 60)}{" "}
+                хв {averageTimeSeconds % 60} сек
               </Typography>
             </CardContent>
           </Card>
@@ -129,8 +132,8 @@ const QuestionnaireStatistics = () => {
             Всього відповідей: {stat.totalAnswers}
           </Typography>
 
-          {stat.type === 'text' ? (
-            <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
+          {stat.type === "text" ? (
+            <Box sx={{ maxHeight: 200, overflowY: "auto" }}>
               {stat.answers.map((answer, i) => (
                 <Typography key={i} variant="body2" sx={{ mb: 1 }}>
                   • {answer}
@@ -140,7 +143,7 @@ const QuestionnaireStatistics = () => {
           ) : (
             <Box sx={{ height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
-                {stat.type === 'single_choice' ? (
+                {stat.type === "single_choice" ? (
                   <PieChart>
                     <Pie
                       data={stat.optionCounts}
@@ -152,7 +155,10 @@ const QuestionnaireStatistics = () => {
                       label={({ name, value }) => `${name}: ${value}`}
                     >
                       {stat.optionCounts.map((_, index) => (
-                        <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                        <Cell
+                          key={index}
+                          fill={COLORS[index % COLORS.length]}
+                        />
                       ))}
                     </Pie>
                     <Tooltip />

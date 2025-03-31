@@ -15,8 +15,13 @@ import {
   ListItem,
   Divider,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
-import { Plus, Trash2, GripVertical, Save } from "lucide-react";
+import { Plus, Trash2, GripVertical, Save, Eye } from "lucide-react";
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { useStore } from "../lib/store";
 import { useAuth } from "../lib/auth";
 import { QuestionOption as IQuestionOption, QuestionType } from "../lib/types";
@@ -38,6 +43,7 @@ const QuestionnaireBuilder = () => {
   const [description, setDescription] = useState("");
   const [questions, setQuestions] = useState<QuestionData[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -120,6 +126,28 @@ const QuestionnaireBuilder = () => {
   const removeOption = (questionIndex: number, optionIndex: number) => {
     const newQuestions = [...questions];
     newQuestions[questionIndex].options.splice(optionIndex, 1);
+    setQuestions(newQuestions);
+  };
+
+  const handleDragEnd = (result: any) => {
+    if (!result.destination) return;
+
+    const items = Array.from(questions);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    setQuestions(items);
+  };
+
+  const handleOptionDragEnd = (questionIndex: number, result: any) => {
+    if (!result.destination) return;
+
+    const newQuestions = [...questions];
+    const options = Array.from(newQuestions[questionIndex].options);
+    const [reorderedItem] = options.splice(result.source.index, 1);
+    options.splice(result.destination.index, 0, reorderedItem);
+
+    newQuestions[questionIndex].options = options;
     setQuestions(newQuestions);
   };
 
@@ -231,9 +259,26 @@ const QuestionnaireBuilder = () => {
 
   return (
     <div>
-      <Typography variant="h4" component="h1" gutterBottom>
-        {id ? "Редагування опитувальника" : "Створення опитувальника"}
-      </Typography>
+      <Box
+        sx={{
+          mb: 4,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <Typography variant="h4" component="h1">
+          {id ? "Редагування опитувальника" : "Створення опитувальника"}
+        </Typography>
+        <Button
+          variant="outlined"
+          startIcon={<Eye />}
+          onClick={() => setPreviewOpen(true)}
+          disabled={questions.length === 0}
+        >
+          Превью
+        </Button>
+      </Box>
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box component="form" noValidate>
@@ -263,119 +308,195 @@ const QuestionnaireBuilder = () => {
         Питання
       </Typography>
 
-      <List>
-        {questions.map((question, questionIndex) => (
-          <React.Fragment key={question.id}>
-            <ListItem
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "stretch",
-                gap: 2,
-                py: 3,
-              }}
-            >
-              <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
-                <IconButton size="small" sx={{ mt: 1 }}>
-                  <GripVertical />
-                </IconButton>
-                <Box sx={{ flex: 1 }}>
-                  <TextField
-                    fullWidth
-                    label={`Питання ${questionIndex + 1}`}
-                    value={question.text}
-                    onChange={(e) =>
-                      updateQuestion(questionIndex, "text", e.target.value)
-                    }
-                    error={!question.text.trim()}
-                    helperText={
-                      !question.text.trim() ? "Текст питання обов'язковий" : ""
-                    }
-                  />
-                </Box>
-                <FormControl sx={{ minWidth: 200 }}>
-                  <InputLabel>Тип питання</InputLabel>
-                  <Select
-                    value={question.type}
-                    label="Тип питання"
-                    onChange={(e) =>
-                      updateQuestion(questionIndex, "type", e.target.value)
-                    }
-                  >
-                    <MenuItem value="text">Текстова відповідь</MenuItem>
-                    <MenuItem value="single_choice">Одиночний вибір</MenuItem>
-                    <MenuItem value="multiple_choice">Множинний вибір</MenuItem>
-                  </Select>
-                </FormControl>
-                <IconButton
-                  color="error"
-                  onClick={() => removeQuestion(questionIndex)}
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId="questions">
+          {(provided) => (
+            <List ref={provided.innerRef} {...provided.droppableProps}>
+              {questions.map((question, questionIndex) => (
+                <Draggable
+                  key={question.id}
+                  draggableId={question.id}
+                  index={questionIndex}
                 >
-                  <Trash2 />
-                </IconButton>
-              </Box>
-
-              {(question.type === "single_choice" ||
-                question.type === "multiple_choice") && (
-                <Box sx={{ pl: 7, width: "100%" }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Варіанти відповідей:
-                  </Typography>
-                  {question.options.map((option, optionIndex) => (
-                    <Box
-                      key={option.id}
-                      sx={{
-                        display: "flex",
-                        gap: 1,
-                        mb: 1,
-                        alignItems: "center",
-                      }}
-                    >
-                      <IconButton size="small">
-                        <GripVertical />
-                      </IconButton>
-                      <TextField
-                        size="small"
-                        fullWidth
-                        label={`Варіант ${optionIndex + 1}`}
-                        value={option.option_text}
-                        onChange={(e) =>
-                          updateOption(
-                            questionIndex,
-                            optionIndex,
-                            e.target.value
-                          )
-                        }
-                        error={!option.option_text.trim()}
-                        helperText={
-                          !option.option_text.trim()
-                            ? "Текст варіанту обов'язковий"
-                            : ""
-                        }
-                      />
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => removeOption(questionIndex, optionIndex)}
+                  {(provided) => (
+                    <React.Fragment>
+                      <ListItem
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        sx={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "stretch",
+                          gap: 2,
+                          py: 3,
+                        }}
                       >
-                        <Trash2 />
-                      </IconButton>
-                    </Box>
-                  ))}
-                  <Button
-                    startIcon={<Plus />}
-                    onClick={() => addOption(questionIndex)}
-                    sx={{ mt: 1 }}
-                  >
-                    Додати варіант
-                  </Button>
-                </Box>
-              )}
-            </ListItem>
-            <Divider />
-          </React.Fragment>
-        ))}
-      </List>
+                        <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
+                          <IconButton
+                            size="small"
+                            sx={{ mt: 1 }}
+                            {...provided.dragHandleProps}
+                          >
+                            <GripVertical />
+                          </IconButton>
+                          <Box sx={{ flex: 1 }}>
+                            <TextField
+                              fullWidth
+                              label={`Питання ${questionIndex + 1}`}
+                              value={question.text}
+                              onChange={(e) =>
+                                updateQuestion(
+                                  questionIndex,
+                                  "text",
+                                  e.target.value
+                                )
+                              }
+                              error={!question.text.trim()}
+                              helperText={
+                                !question.text.trim()
+                                  ? "Текст питання обов'язковий"
+                                  : ""
+                              }
+                            />
+                          </Box>
+                          <FormControl sx={{ minWidth: 200 }}>
+                            <InputLabel>Тип питання</InputLabel>
+                            <Select
+                              value={question.type}
+                              label="Тип питання"
+                              onChange={(e) =>
+                                updateQuestion(
+                                  questionIndex,
+                                  "type",
+                                  e.target.value
+                                )
+                              }
+                            >
+                              <MenuItem value="text">
+                                Текстова відповідь
+                              </MenuItem>
+                              <MenuItem value="single_choice">
+                                Одиночний вибір
+                              </MenuItem>
+                              <MenuItem value="multiple_choice">
+                                Множинний вибір
+                              </MenuItem>
+                            </Select>
+                          </FormControl>
+                          <IconButton
+                            color="error"
+                            onClick={() => removeQuestion(questionIndex)}
+                          >
+                            <Trash2 />
+                          </IconButton>
+                        </Box>
+
+                        {(question.type === "single_choice" ||
+                          question.type === "multiple_choice") && (
+                          <Box sx={{ pl: 7, width: "100%" }}>
+                            <Typography variant="subtitle2" gutterBottom>
+                              Варіанти відповідей:
+                            </Typography>
+                            <DragDropContext
+                              onDragEnd={(result) =>
+                                handleOptionDragEnd(questionIndex, result)
+                              }
+                            >
+                              <Droppable droppableId={`options-${question.id}`}>
+                                {(provided) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.droppableProps}
+                                  >
+                                    {question.options.map(
+                                      (option, optionIndex) => (
+                                        <Draggable
+                                          key={option.id}
+                                          draggableId={option.id}
+                                          index={optionIndex}
+                                        >
+                                          {(provided) => (
+                                            <Box
+                                              ref={provided.innerRef}
+                                              {...provided.draggableProps}
+                                              sx={{
+                                                display: "flex",
+                                                gap: 1,
+                                                mb: 1,
+                                                alignItems: "center",
+                                              }}
+                                            >
+                                              <IconButton
+                                                size="small"
+                                                {...provided.dragHandleProps}
+                                              >
+                                                <GripVertical />
+                                              </IconButton>
+                                              <TextField
+                                                size="small"
+                                                fullWidth
+                                                label={`Варіант ${
+                                                  optionIndex + 1
+                                                }`}
+                                                value={option.option_text}
+                                                onChange={(e) =>
+                                                  updateOption(
+                                                    questionIndex,
+                                                    optionIndex,
+                                                    e.target.value
+                                                  )
+                                                }
+                                                error={
+                                                  !option.option_text.trim()
+                                                }
+                                                helperText={
+                                                  !option.option_text.trim()
+                                                    ? "Текст варіанту обов'язковий"
+                                                    : ""
+                                                }
+                                              />
+                                              <IconButton
+                                                size="small"
+                                                color="error"
+                                                onClick={() =>
+                                                  removeOption(
+                                                    questionIndex,
+                                                    optionIndex
+                                                  )
+                                                }
+                                              >
+                                                <Trash2 />
+                                              </IconButton>
+                                            </Box>
+                                          )}
+                                        </Draggable>
+                                      )
+                                    )}
+                                    {provided.placeholder}
+                                  </div>
+                                )}
+                              </Droppable>
+                            </DragDropContext>
+                            <Button
+                              startIcon={<Plus />}
+                              onClick={() => addOption(questionIndex)}
+                              sx={{ mt: 1 }}
+                            >
+                              Додати варіант
+                            </Button>
+                          </Box>
+                        )}
+                      </ListItem>
+                      <Divider />
+                    </React.Fragment>
+                  )}
+                </Draggable>
+              ))}
+              {provided.placeholder}
+            </List>
+          )}
+        </Droppable>
+      </DragDropContext>
 
       <Box sx={{ mt: 2, mb: 4 }}>
         <Button variant="outlined" startIcon={<Plus />} onClick={addQuestion}>
@@ -401,6 +522,70 @@ const QuestionnaireBuilder = () => {
           Зберегти опитувальник
         </Button>
       </Box>
+
+      <Dialog
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Превью опитувальника</DialogTitle>
+        <DialogContent>
+          <Typography variant="h5" gutterBottom>
+            {title}
+          </Typography>
+          {description && (
+            <Typography variant="body1" paragraph>
+              {description}
+            </Typography>
+          )}
+          {questions.map((question, index) => (
+            <Paper key={question.id} sx={{ p: 2, mb: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                {index + 1}. {question.text}
+              </Typography>
+              {question.type === "text" ? (
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  disabled
+                  placeholder="Місце для текстової відповіді"
+                />
+              ) : question.type === "single_choice" ? (
+                <FormControl component="fieldset">
+                  {question.options.map((option) => (
+                    <div key={option.id}>
+                      <input
+                        type="radio"
+                        disabled
+                        style={{ marginRight: "8px" }}
+                      />
+                      {option.option_text}
+                    </div>
+                  ))}
+                </FormControl>
+              ) : (
+                <FormControl component="fieldset">
+                  {question.options.map((option) => (
+                    <div key={option.id}>
+                      <input
+                        type="checkbox"
+                        disabled
+                        style={{ marginRight: "8px" }}
+                      />
+                      {option.option_text}
+                    </div>
+                  ))}
+                </FormControl>
+              )}
+            </Paper>
+          ))}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPreviewOpen(false)}>Закрити</Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };

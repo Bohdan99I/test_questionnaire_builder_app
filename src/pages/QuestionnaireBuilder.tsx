@@ -90,7 +90,7 @@ const QuestionnaireBuilder = () => {
   const updateQuestion = (
     index: number,
     field: keyof QuestionData,
-    value: any
+    value: string
   ) => {
     const newQuestions = [...questions];
     newQuestions[index] = { ...newQuestions[index], [field]: value };

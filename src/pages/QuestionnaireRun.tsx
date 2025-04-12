@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Typography,
@@ -12,47 +12,99 @@ import {
   Checkbox,
   FormGroup,
   Alert,
+  CircularProgress,
 } from "@mui/material";
 import { useStore } from "../lib/store";
 import { Question, QuestionOption } from "../lib/types";
 
-interface QuestionWithOptions extends Question {
+interface PopulatedQuestion extends Question {
   options: QuestionOption[];
 }
 
 const QuestionnaireRun = () => {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { state, dispatch } = useStore();
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
-  const [startTime] = useState<Date>(new Date());
-  const [error, setError] = useState<string | null>(null);
 
-  const questionnaire = state.questionnaires.find((q) => q.id === id);
-  const questions = state.questions
-    .filter((q) => q.questionnaire_id === id)
-    .sort((a, b) => a.order - b.order)
-    .map((question) => ({
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
+  const [startTime] = useState<Date>(() => new Date());
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const questionnaire = useMemo(() => {
+    return state.questionnaires.find((q) => q.id === id);
+  }, [state.questionnaires, id]);
+
+  const questions: PopulatedQuestion[] = useMemo(() => {
+    if (!questionnaire) return [];
+
+    const filteredQuestions = state.questions
+      .filter((q) => q.questionnaire_id === id)
+      .sort((a, b) => a.order - b.order);
+
+    return filteredQuestions.map((question) => ({
       ...question,
       options: state.questionOptions
         .filter((o) => o.question_id === question.id)
         .sort((a, b) => a.order - b.order),
     }));
+  }, [state.questions, state.questionOptions, id, questionnaire]);
 
   useEffect(() => {
-    if (!questionnaire) {
-      navigate("/");
-    }
-  }, [questionnaire, navigate]);
+    const timer = setTimeout(() => {
+      if (!questionnaire) {
+        console.warn(`Опитувальник з ID ${id} не знайдено.`);
+        navigate("/");
+      } else {
+        setIsLoading(false);
+      }
+    }, 0);
 
-  if (!questionnaire || questions.length === 0) {
-    return <Alert severity="error">Опитувальник не знайдено</Alert>;
+    return () => clearTimeout(timer);
+  }, [questionnaire, id, navigate]);
+
+  // --- Рендер індикатора завантаження ---
+  if (isLoading) {
+    return (
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="200px"
+      >
+        <CircularProgress />
+      </Box>
+    );
   }
 
-  const currentQuestion = questions[currentQuestionIndex];
+  // --- Рендер помилки, якщо опитувальник не знайдено після завантаження ---
+  if (!questionnaire || questions.length === 0) {
+    return (
+      <Alert severity="error">
+        {!questionnaire
+          ? `Опитувальник з ID ${id} не знайдено.`
+          : `Для опитувальника "${questionnaire.title}" не знайдено питань.`}
+      </Alert>
+    );
+  }
 
+  // --- Рендер питання ---
+  const currentQuestion = questions[currentQuestionIndex];
+  if (!currentQuestion) {
+    console.error(
+      "Помилка: Спроба доступу до неіснуючого питання за індексом",
+      currentQuestionIndex
+    );
+    return (
+      <Alert severity="error">
+        Виникла внутрішня помилка відображення питання.
+      </Alert>
+    );
+  }
+
+  // --- Обробники відповідей ---
   const handleTextAnswer = (questionId: string, value: string) => {
     setAnswers((prev) => ({
       ...prev,
@@ -74,56 +126,71 @@ const QuestionnaireRun = () => {
   ) => {
     setAnswers((prev) => {
       const currentAnswers = (prev[questionId] as string[]) || [];
+      let updatedAnswers: string[];
       if (checked) {
-        return {
-          ...prev,
-          [questionId]: [...currentAnswers, optionId],
-        };
+        updatedAnswers = [...new Set([...currentAnswers, optionId])];
       } else {
-        return {
-          ...prev,
-          [questionId]: currentAnswers.filter((id) => id !== optionId),
-        };
+        updatedAnswers = currentAnswers.filter((id) => id !== optionId);
       }
+      return {
+        ...prev,
+        [questionId]: updatedAnswers,
+      };
     });
   };
 
+  // --- Обробники навігації між питаннями ---
   const handleNext = () => {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex((prev) => prev + 1);
+      setError(null);
     }
   };
 
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex((prev) => prev - 1);
+      setError(null);
     }
   };
 
+  // --- Обробник відправки форми ---
   const handleSubmit = () => {
-    try {
-      setError(null);
+    setError(null);
 
-      // Перевірка відповідей
+    try {
       const unansweredQuestions = questions.filter((q) => {
         const answer = answers[q.id];
-        if (!answer) return true;
+        if (answer === undefined || answer === null) return true;
         if (Array.isArray(answer) && answer.length === 0) return true;
-        if (typeof answer === "string" && !answer.trim()) return true;
+        if (typeof answer === "string" && answer.trim() === "") return true;
         return false;
       });
 
       if (unansweredQuestions.length > 0) {
-        throw new Error("Будь ласка, дайте відповідь на всі питання");
+        const firstUnansweredIndex = questions.findIndex((q) =>
+          unansweredQuestions.some((uq) => uq.id === q.id)
+        );
+        if (
+          firstUnansweredIndex !== -1 &&
+          firstUnansweredIndex !== currentQuestionIndex
+        ) {
+          setCurrentQuestionIndex(firstUnansweredIndex);
+        }
+        throw new Error(
+          `Будь ласка, дайте відповідь на ${
+            unansweredQuestions.length > 1 ? "всі питання" : "питання"
+          }. Перше пропущене: "${unansweredQuestions[0].question_text}"`
+        );
       }
 
       const endTime = new Date();
-      const timeTakenSeconds = Math.floor(
+      const timeTakenSeconds = Math.round(
         (endTime.getTime() - startTime.getTime()) / 1000
       );
 
-      // Створення запису про проходження
       const responseId = crypto.randomUUID();
+
       dispatch({
         type: "ADD_RESPONSE",
         payload: {
@@ -135,7 +202,6 @@ const QuestionnaireRun = () => {
         },
       });
 
-      // Збереження відповідей
       Object.entries(answers).forEach(([questionId, answer]) => {
         dispatch({
           type: "ADD_ANSWER",
@@ -149,16 +215,22 @@ const QuestionnaireRun = () => {
         });
       });
 
+      // Успішне завершення - перехід на головну або сторінку подяки
       navigate("/");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Помилка при збереженні відповідей"
+        err instanceof Error
+          ? err.message
+          : "Сталася невідома помилка при збереженні відповідей."
       );
+      console.error("Помилка відправки:", err);
     }
   };
 
+  // --- JSX Рендеринг ---
   return (
     <div>
+      {/* Заголовок та опис опитувальника */}
       <Typography variant="h4" component="h1" gutterBottom>
         {questionnaire.title}
       </Typography>
@@ -169,6 +241,7 @@ const QuestionnaireRun = () => {
         </Typography>
       )}
 
+      {/* Блок з поточним питанням */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>
           Питання {currentQuestionIndex + 1} з {questions.length}
@@ -178,21 +251,24 @@ const QuestionnaireRun = () => {
           {currentQuestion.question_text}
         </Typography>
 
+        {/* Умовний рендеринг полів вводу */}
         {currentQuestion.question_type === "text" && (
           <TextField
             fullWidth
             multiline
             rows={4}
-            value={answers[currentQuestion.id] || ""}
+            value={answers[currentQuestion.id] ?? ""}
             onChange={(e) =>
               handleTextAnswer(currentQuestion.id, e.target.value)
             }
+            label="Ваша відповідь"
+            variant="outlined"
           />
         )}
 
         {currentQuestion.question_type === "single_choice" && (
           <RadioGroup
-            value={answers[currentQuestion.id] || ""}
+            value={answers[currentQuestion.id] ?? ""}
             onChange={(e) =>
               handleSingleChoice(currentQuestion.id, e.target.value)
             }
@@ -215,9 +291,12 @@ const QuestionnaireRun = () => {
                 key={option.id}
                 control={
                   <Checkbox
-                    checked={(
-                      (answers[currentQuestion.id] as string[]) || []
-                    ).includes(option.id)}
+                    checked={
+                      Array.isArray(answers[currentQuestion.id]) &&
+                      (answers[currentQuestion.id] as string[]).includes(
+                        option.id
+                      )
+                    }
                     onChange={(e) =>
                       handleMultipleChoice(
                         currentQuestion.id,
@@ -234,26 +313,33 @@ const QuestionnaireRun = () => {
         )}
       </Paper>
 
+      {/* Відображення помилки */}
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
         </Alert>
       )}
 
+      {/* Кнопки навігації */}
       <Box sx={{ mt: 3, display: "flex", justifyContent: "space-between" }}>
         <Button
           variant="outlined"
           onClick={handlePrevious}
-          disabled={currentQuestionIndex === 0}
+          disabled={currentQuestionIndex === 0 || isLoading}
         >
           Назад
         </Button>
         {currentQuestionIndex === questions.length - 1 ? (
-          <Button variant="contained" onClick={handleSubmit}>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleSubmit}
+            disabled={isLoading}
+          >
             Завершити
           </Button>
         ) : (
-          <Button variant="contained" onClick={handleNext}>
+          <Button variant="contained" onClick={handleNext} disabled={isLoading}>
             Далі
           </Button>
         )}

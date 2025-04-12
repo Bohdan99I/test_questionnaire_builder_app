@@ -20,7 +20,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
 
   if (loading) {
     return <div>Loading...</div>;

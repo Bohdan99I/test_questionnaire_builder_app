@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
@@ -13,18 +13,41 @@ import {
   InputLabel,
   List,
   ListItem,
-  Divider,
   Alert,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  CircularProgress,
+  Tooltip,
+  Radio,
+  Checkbox,
+  FormControlLabel,
+  RadioGroup,
+  FormGroup,
 } from "@mui/material";
-import { Plus, Trash2, GripVertical, Save, Eye } from "lucide-react";
-import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
+import {
+  Plus,
+  Trash2,
+  GripVertical,
+  Save,
+  Eye,
+  AlertCircle,
+} from "lucide-react";
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  DropResult,
+} from "react-beautiful-dnd";
 import { useStore } from "../lib/store";
 import { useAuth } from "../lib/auth";
-import { QuestionOption as IQuestionOption, QuestionType } from "../lib/types";
+import {
+  Questionnaire,
+  Question,
+  QuestionOption as IQuestionOption,
+  QuestionType,
+} from "../lib/types";
 
 interface QuestionData {
   id: string;
@@ -34,7 +57,7 @@ interface QuestionData {
 }
 
 const QuestionnaireBuilder = () => {
-  const { id } = useParams();
+  const { id: questionnaireIdParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { state, dispatch } = useStore();
   const { user } = useAuth();
@@ -43,35 +66,78 @@ const QuestionnaireBuilder = () => {
   const [description, setDescription] = useState("");
   const [questions, setQuestions] = useState<QuestionData[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!questionnaireIdParam);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
+  // --- Завантаження даних для редагування ---
   useEffect(() => {
-    if (id) {
-      const questionnaire = state.questionnaires.find((q) => q.id === id);
+    if (questionnaireIdParam && !isDataLoaded) {
+      setIsLoading(true);
+      console.log(`Завантаження даних для ID: ${questionnaireIdParam}`);
+      const questionnaire = state.questionnaires.find(
+        (q: Questionnaire) => q.id === questionnaireIdParam
+      );
+
       if (questionnaire) {
+        if (questionnaire.user_id !== user?.id) {
+          setError("Ви не маєте права редагувати цей опитувальник.");
+          setIsLoading(false);
+          return;
+        }
+
         setTitle(questionnaire.title);
         setDescription(questionnaire.description || "");
 
-        const existingQuestions = state.questions
-          .filter((q) => q.questionnaire_id === id)
-          .sort((a, b) => a.order - b.order)
-          .map((q) => ({
+        const existingQuestionsRaw = state.questions
+          .filter((q: Question) => q.questionnaire_id === questionnaireIdParam)
+          .sort((a: Question, b: Question) => a.order - b.order);
+
+        const questionIds = new Set(existingQuestionsRaw.map((q) => q.id));
+        const relevantOptions = state.questionOptions
+          .filter((o: IQuestionOption) => questionIds.has(o.question_id))
+          .sort((a: IQuestionOption, b: IQuestionOption) => a.order - b.order);
+
+        const optionsByQuestionId = relevantOptions.reduce((acc, option) => {
+          (acc[option.question_id] = acc[option.question_id] || []).push(
+            option
+          );
+          return acc;
+        }, {} as Record<string, IQuestionOption[]>);
+
+        const existingQuestions = existingQuestionsRaw.map(
+          (q: Question): QuestionData => ({
             id: q.id,
             text: q.question_text,
             type: q.question_type,
-            options: state.questionOptions
-              .filter((o) => o.question_id === q.id)
-              .sort((a, b) => a.order - b.order),
-          }));
+            options: optionsByQuestionId[q.id] || [],
+          })
+        );
 
         setQuestions(existingQuestions);
+        setIsDataLoaded(true);
+      } else {
+        setError(`Опитувальник з ID ${questionnaireIdParam} не знайдено.`);
       }
+      setIsLoading(false);
+    } else if (!questionnaireIdParam) {
+      setIsLoading(false);
     }
-  }, [id, state.questionnaires, state.questions, state.questionOptions]);
+  }, [
+    questionnaireIdParam,
+    state.questionnaires,
+    state.questions,
+    state.questionOptions,
+    isDataLoaded,
+    user?.id,
+    navigate,
+  ]);
 
-  const addQuestion = () => {
-    setQuestions([
-      ...questions,
+  // --- Функції для управління станом конструктора опитувальників ---
+  const addQuestion = useCallback(() => {
+    setQuestions((prevQuestions) => [
+      ...prevQuestions,
       {
         id: crypto.randomUUID(),
         text: "",
@@ -79,200 +145,337 @@ const QuestionnaireBuilder = () => {
         options: [],
       },
     ]);
-  };
+  }, []);
 
-  const removeQuestion = (index: number) => {
-    const newQuestions = [...questions];
-    newQuestions.splice(index, 1);
-    setQuestions(newQuestions);
-  };
-
-  const updateQuestion = (
-    index: number,
-    field: keyof QuestionData,
-    value: string
-  ) => {
-    const newQuestions = [...questions];
-    newQuestions[index] = { ...newQuestions[index], [field]: value };
-
-    if (field === "type" && value === "text") {
-      newQuestions[index].options = [];
-    }
-
-    setQuestions(newQuestions);
-  };
-
-  const addOption = (questionIndex: number) => {
-    const newQuestions = [...questions];
-    newQuestions[questionIndex].options.push({
-      id: crypto.randomUUID(),
-      question_id: questions[questionIndex].id,
-      option_text: "",
-      order: newQuestions[questionIndex].options.length,
+  const removeQuestion = useCallback((index: number) => {
+    setQuestions((prevQuestions) => {
+      const newQuestions = [...prevQuestions];
+      newQuestions.splice(index, 1);
+      return newQuestions;
     });
-    setQuestions(newQuestions);
-  };
+  }, []);
 
-  const updateOption = (
-    questionIndex: number,
-    optionIndex: number,
-    text: string
-  ) => {
-    const newQuestions = [...questions];
-    newQuestions[questionIndex].options[optionIndex].option_text = text;
-    setQuestions(newQuestions);
-  };
-
-  const removeOption = (questionIndex: number, optionIndex: number) => {
-    const newQuestions = [...questions];
-    newQuestions[questionIndex].options.splice(optionIndex, 1);
-    setQuestions(newQuestions);
-  };
-
-  const handleDragEnd = (result: any) => {
-    if (!result.destination) return;
-
-    const items = Array.from(questions);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-
-    setQuestions(items);
-  };
-
-  const handleOptionDragEnd = (questionIndex: number, result: any) => {
-    if (!result.destination) return;
-
-    const newQuestions = [...questions];
-    const options = Array.from(newQuestions[questionIndex].options);
-    const [reorderedItem] = options.splice(result.source.index, 1);
-    options.splice(result.destination.index, 0, reorderedItem);
-
-    newQuestions[questionIndex].options = options;
-    setQuestions(newQuestions);
-  };
-
-  const handleSave = () => {
-    try {
-      setError(null);
-
-      if (!title.trim()) {
-        throw new Error("Назва опитувальника обов'язкова");
-      }
-
-      if (questions.length === 0) {
-        throw new Error("Додайте хоча б одне питання");
-      }
-
-      for (const question of questions) {
-        if (!question.text.trim()) {
-          throw new Error("Всі питання повинні мати текст");
-        }
+  const updateQuestion = useCallback(
+    (
+      index: number,
+      field: keyof QuestionData,
+      value: string | QuestionType
+    ) => {
+      setQuestions((prevQuestions) => {
+        const newQuestions = [...prevQuestions];
         if (
-          (question.type === "single_choice" ||
-            question.type === "multiple_choice") &&
-          question.options.length < 2
+          field === "type" &&
+          (value === "text" ||
+            value === "single_choice" ||
+            value === "multiple_choice")
         ) {
+          newQuestions[index] = {
+            ...newQuestions[index],
+            type: value as QuestionType,
+          };
+          if (value === "text") {
+            newQuestions[index].options = [];
+          }
+        } else if (field === "text" && typeof value === "string") {
+          newQuestions[index] = { ...newQuestions[index], text: value };
+        } else if (field === "id" || field === "options") {
+          console.warn(
+            `Attempted to update restricted field '${field}' using updateQuestion`
+          );
+          return prevQuestions;
+        }
+        return newQuestions;
+      });
+    },
+    []
+  );
+
+  const addOption = useCallback((questionIndex: number) => {
+    setQuestions((prevQuestions) => {
+      if (!prevQuestions[questionIndex]) return prevQuestions;
+
+      const newQuestions = [...prevQuestions];
+      const currentOptions = newQuestions[questionIndex].options || [];
+      const newOption: IQuestionOption = {
+        id: crypto.randomUUID(),
+        question_id: newQuestions[questionIndex].id,
+        option_text: "",
+        order: currentOptions.length,
+      };
+      newQuestions[questionIndex].options = [...currentOptions, newOption];
+      return newQuestions;
+    });
+  }, []);
+
+  const updateOption = useCallback(
+    (questionIndex: number, optionIndex: number, text: string) => {
+      setQuestions((prevQuestions) => {
+        if (!prevQuestions[questionIndex]?.options?.[optionIndex])
+          return prevQuestions;
+
+        const newQuestions = [...prevQuestions];
+        const newOptions = [...newQuestions[questionIndex].options];
+        newOptions[optionIndex] = {
+          ...newOptions[optionIndex],
+          option_text: text,
+        };
+        newQuestions[questionIndex].options = newOptions;
+        return newQuestions;
+      });
+    },
+    []
+  );
+
+  const removeOption = useCallback(
+    (questionIndex: number, optionIndex: number) => {
+      setQuestions((prevQuestions) => {
+        if (!prevQuestions[questionIndex]?.options?.[optionIndex])
+          return prevQuestions;
+
+        const newQuestions = [...prevQuestions];
+        const options = [...newQuestions[questionIndex].options];
+        options.splice(optionIndex, 1);
+        const updatedOptions = options.map((opt, idx) => ({
+          ...opt,
+          order: idx,
+        }));
+        newQuestions[questionIndex].options = updatedOptions;
+        return newQuestions;
+      });
+    },
+    []
+  );
+
+  // --- Обробники Drag & Drop ---
+  const handleDragEnd = useCallback((result: DropResult) => {
+    if (!result.destination) return;
+
+    setQuestions((prevQuestions) => {
+      const items = Array.from(prevQuestions);
+      const [reorderedItem] = items.splice(result.source.index, 1);
+      items.splice(result.destination!.index, 0, reorderedItem);
+      return items;
+    });
+  }, []);
+
+  const handleOptionDragEnd = useCallback(
+    (questionIndex: number, result: DropResult) => {
+      if (!result.destination) return;
+
+      setQuestions((prevQuestions) => {
+        if (!prevQuestions[questionIndex]?.options) return prevQuestions;
+
+        const newQuestions = [...prevQuestions];
+        const options = Array.from(newQuestions[questionIndex].options);
+        const [reorderedItem] = options.splice(result.source.index, 1);
+        options.splice(result.destination!.index, 0, reorderedItem);
+
+        const updatedOptions = options.map((opt, index) => ({
+          ...opt,
+          order: index,
+        }));
+
+        newQuestions[questionIndex].options = updatedOptions;
+        return newQuestions;
+      });
+    },
+    []
+  );
+
+  // --- Збереження опитувальника ---
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      // --- Валідація ---
+      if (!user?.id) {
+        throw new Error("Користувач не автентифікований. Неможливо зберегти.");
+      }
+      if (!title.trim()) {
+        throw new Error("Назва опитувальника не може бути порожньою.");
+      }
+      if (questions.length === 0) {
+        throw new Error("Опитувальник повинен містити хоча б одне питання.");
+      }
+
+      for (let i = 0; i < questions.length; i++) {
+        const question = questions[i];
+        if (!question.text.trim()) {
           throw new Error(
-            "Питання з вибором повинні мати мінімум 2 варіанти відповіді"
+            `Питання ${i + 1}: Текст питання не може бути порожнім.`
           );
         }
-        for (const option of question.options) {
-          if (!option.option_text.trim()) {
-            throw new Error("Всі варіанти відповідей повинні мати текст");
+        if (
+          question.type === "single_choice" ||
+          question.type === "multiple_choice"
+        ) {
+          if (question.options.length < 2) {
+            throw new Error(
+              `Питання ${i + 1} (${
+                question.text
+              }): Питання з вибором повинні мати принаймні 2 варіанти.`
+            );
+          }
+          for (let j = 0; j < question.options.length; j++) {
+            const option = question.options[j];
+            if (!option.option_text.trim()) {
+              throw new Error(
+                `Питання ${i + 1} (${question.text}): Варіант ${
+                  j + 1
+                } не може бути порожнім.`
+              );
+            }
           }
         }
       }
 
-      const questionnaireId = id || crypto.randomUUID();
+      // --- Логіка збереження опитувальника ---
+      const finalQuestionnaireId = questionnaireIdParam || crypto.randomUUID();
 
-      if (id) {
-        dispatch({
-          type: "UPDATE_QUESTIONNAIRE",
-          payload: {
-            id: questionnaireId,
-            title,
-            description: description || null,
-            created_at:
-              state.questionnaires.find((q) => q.id === id)?.created_at ||
-              new Date().toISOString(),
-            user_id: user?.id || "",
-          },
-        });
-      } else {
-        dispatch({
-          type: "ADD_QUESTIONNAIRE",
-          payload: {
-            id: questionnaireId,
-            title,
-            description: description || null,
-            created_at: new Date().toISOString(),
-            user_id: user?.id || "",
-          },
-        });
-      }
+      // 1. Оновлюємо або додаємо сам опитувальник
+      const questionnairePayload: Questionnaire = {
+        id: finalQuestionnaireId,
+        title: title.trim(),
+        description: description.trim() || null,
+        created_at: questionnaireIdParam
+          ? state.questionnaires.find((q) => q.id === questionnaireIdParam)
+              ?.created_at ?? new Date().toISOString()
+          : new Date().toISOString(),
+        user_id: user.id,
+      };
 
-      if (id) {
-        const oldQuestions = state.questions.filter(
-          (q) => q.questionnaire_id === id
-        );
-        oldQuestions.forEach((q) => {
-          dispatch({ type: "DELETE_QUESTION", payload: q.id });
-        });
-      }
+      dispatch({
+        type: questionnaireIdParam
+          ? "UPDATE_QUESTIONNAIRE"
+          : "ADD_QUESTIONNAIRE",
+        payload: questionnairePayload,
+      });
 
-      questions.forEach((question, index) => {
-        const questionId = question.id;
+      // 2. Видаляємо старі питання та опції ТІЛЬКИ ЯКЩО РЕДАГУЄМО ОПИТУВАЛЬНИК
+      const newQuestionMap = new Map<string, string>();
+      const questionsToSave: Question[] = [];
+      const optionsToSave: IQuestionOption[] = [];
 
-        dispatch({
-          type: "ADD_QUESTION",
-          payload: {
-            id: questionId,
-            questionnaire_id: questionnaireId,
-            question_text: question.text,
-            question_type: question.type,
-            order: index,
-          },
+      questions.forEach((localQuestion, index) => {
+        const newQuestionId = crypto.randomUUID();
+        newQuestionMap.set(localQuestion.id, newQuestionId);
+
+        questionsToSave.push({
+          id: newQuestionId,
+          questionnaire_id: finalQuestionnaireId,
+          question_text: localQuestion.text.trim(),
+          question_type: localQuestion.type,
+          order: index,
         });
 
-        question.options.forEach((option, optionIndex) => {
-          dispatch({
-            type: "ADD_OPTION",
-            payload: {
-              id: option.id,
-              question_id: questionId,
-              option_text: option.option_text,
-              order: optionIndex,
-            },
+        localQuestion.options.forEach((localOption, optionIndex) => {
+          optionsToSave.push({
+            id: crypto.randomUUID(),
+            question_id: newQuestionId,
+            option_text: localOption.option_text.trim(),
+            order: optionIndex,
           });
         });
       });
 
+      // 3. Видаляємо ВСІ старі питання та опції, пов'язані з questionnaireIdParam (тільки при редагуванні)
+      if (questionnaireIdParam) {
+        const oldQuestions = state.questions.filter(
+          (q: Question) => q.questionnaire_id === questionnaireIdParam
+        );
+        const oldOptions = state.questionOptions.filter((o: IQuestionOption) =>
+          oldQuestions.some((q) => q.id === o.question_id)
+        );
+
+        oldOptions.forEach((opt) =>
+          dispatch({ type: "DELETE_OPTION", payload: opt.id })
+        );
+        oldQuestions.forEach((q) =>
+          dispatch({ type: "DELETE_QUESTION", payload: q.id })
+        );
+      }
+
+      // 4. Додаємо нові питання та опції
+      questionsToSave.forEach((q) =>
+        dispatch({ type: "ADD_QUESTION", payload: q })
+      );
+      optionsToSave.forEach((o) =>
+        dispatch({ type: "ADD_OPTION", payload: o })
+      );
+
+      // 5. Успішне збереження - перехід на головну
       navigate("/");
     } catch (err) {
+      console.error("Помилка збереження:", err);
       setError(
         err instanceof Error
           ? err.message
-          : "Помилка при збереженні опитувальника"
+          : "Невідома помилка при збереженні опитувальника."
       );
+    } finally {
+      setIsSaving(false);
     }
-  };
+  }, [
+    title,
+    description,
+    questions,
+    questionnaireIdParam,
+    user,
+    dispatch,
+    navigate,
+    state.questionnaires,
+    state.questions,
+    state.questionOptions,
+  ]);
+
+  // --- Рендеринг ---
+  if (isLoading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", mt: 5 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // Показуємо помилку завантаження даних, якщо вона є (після завершення завантаження)
+  if (!isLoading && error && !isSaving) {
+    return (
+      <Alert severity="error" sx={{ m: 3 }}>
+        {error}
+      </Alert>
+    );
+  }
+
+  // Показуємо помилку, якщо не вдалося завантажити опитувальник
+  if (questionnaireIdParam && !isDataLoaded && !isLoading) {
+    return (
+      <Alert severity="warning" sx={{ m: 3 }}>
+        Не вдалося завантажити дані опитувальника.
+      </Alert>
+    );
+  }
 
   return (
     <div>
       <Box
         sx={{
-          mb: 4,
+          mb: 3,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          flexWrap: "wrap",
+          gap: 2,
         }}
       >
         <Typography variant="h4" component="h1">
-          {id ? "Редагування опитувальника" : "Створення опитувальника"}
+          {questionnaireIdParam
+            ? "Редагування опитувальника"
+            : "Створення опитувальника"}
         </Typography>
         <Button
           variant="outlined"
-          startIcon={<Eye />}
+          startIcon={<Eye size={18} />}
           onClick={() => setPreviewOpen(true)}
           disabled={questions.length === 0}
         >
@@ -280,8 +483,10 @@ const QuestionnaireBuilder = () => {
         </Button>
       </Box>
 
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Box component="form" noValidate>
+      {/* Форма назви та опису */}
+      <Paper sx={{ p: { xs: 2, md: 3 }, mb: 3 }} elevation={1}>
+        <Box component="form" noValidate onSubmit={(e) => e.preventDefault()}>
+          {" "}
           <TextField
             margin="normal"
             required
@@ -291,19 +496,22 @@ const QuestionnaireBuilder = () => {
             onChange={(e) => setTitle(e.target.value)}
             error={!title.trim()}
             helperText={!title.trim() ? "Назва обов'язкова" : ""}
+            disabled={isSaving}
           />
           <TextField
             margin="normal"
             fullWidth
             multiline
-            rows={4}
-            label="Опис"
+            rows={3}
+            label="Опис (опціонально)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            disabled={isSaving}
           />
         </Box>
       </Paper>
 
+      {/* Секція питань */}
       <Typography variant="h5" gutterBottom sx={{ mt: 4 }}>
         Питання
       </Typography>
@@ -311,183 +519,232 @@ const QuestionnaireBuilder = () => {
       <DragDropContext onDragEnd={handleDragEnd}>
         <Droppable droppableId="questions">
           {(provided) => (
-            <List ref={provided.innerRef} {...provided.droppableProps}>
+            <List
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              disablePadding
+            >
               {questions.map((question, questionIndex) => (
                 <Draggable
                   key={question.id}
                   draggableId={question.id}
                   index={questionIndex}
                 >
-                  {(provided) => (
+                  {(providedDraggableQuestion) => (
                     <React.Fragment>
-                      <ListItem
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        sx={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "stretch",
-                          gap: 2,
-                          py: 3,
-                        }}
+                      <Paper
+                        elevation={2}
+                        sx={{ mb: 2 }}
+                        ref={providedDraggableQuestion.innerRef}
+                        {...providedDraggableQuestion.draggableProps}
                       >
-                        <Box sx={{ display: "flex", gap: 2, width: "100%" }}>
-                          <IconButton
-                            size="small"
-                            sx={{ mt: 1 }}
-                            {...provided.dragHandleProps}
+                        <ListItem
+                          sx={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "stretch",
+                            gap: 2,
+                            py: 2,
+                            px: { xs: 1, md: 2 },
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display: "flex",
+                              gap: 1,
+                              width: "100%",
+                              alignItems: "flex-start",
+                            }}
                           >
-                            <GripVertical />
-                          </IconButton>
-                          <Box sx={{ flex: 1 }}>
-                            <TextField
-                              fullWidth
-                              label={`Питання ${questionIndex + 1}`}
-                              value={question.text}
-                              onChange={(e) =>
-                                updateQuestion(
-                                  questionIndex,
-                                  "text",
-                                  e.target.value
-                                )
-                              }
-                              error={!question.text.trim()}
-                              helperText={
-                                !question.text.trim()
-                                  ? "Текст питання обов'язковий"
-                                  : ""
-                              }
-                            />
+                            {/* Drag Handle */}
+                            <Box
+                              {...providedDraggableQuestion.dragHandleProps}
+                              sx={{ pt: 1.5, cursor: "grab" }}
+                            >
+                              <GripVertical size={20} />
+                            </Box>
+                            {/* Текст та тип питання */}
+                            <Box
+                              sx={{
+                                flexGrow: 1,
+                                display: "flex",
+                                flexDirection: { xs: "column", md: "row" },
+                                gap: 2,
+                              }}
+                            >
+                              <TextField
+                                fullWidth
+                                required
+                                label={`Питання ${questionIndex + 1}`}
+                                value={question.text}
+                                onChange={(e) =>
+                                  updateQuestion(
+                                    questionIndex,
+                                    "text",
+                                    e.target.value
+                                  )
+                                }
+                                error={!question.text.trim()}
+                                helperText={
+                                  !question.text.trim()
+                                    ? "Текст питання обов'язковий"
+                                    : ""
+                                }
+                                disabled={isSaving}
+                                multiline
+                                minRows={1}
+                              />
+                              <FormControl
+                                sx={{ minWidth: { xs: "100%", md: 200 } }}
+                                size="small"
+                              >
+                                {" "}
+                                <InputLabel>Тип питання</InputLabel>
+                                <Select
+                                  value={question.type}
+                                  label="Тип питання"
+                                  onChange={(e) =>
+                                    updateQuestion(
+                                      questionIndex,
+                                      "type",
+                                      e.target.value as QuestionType
+                                    )
+                                  }
+                                  disabled={isSaving}
+                                >
+                                  <MenuItem value="text">
+                                    Текстова відповідь
+                                  </MenuItem>
+                                  <MenuItem value="single_choice">
+                                    Один варіант
+                                  </MenuItem>
+                                  <MenuItem value="multiple_choice">
+                                    Кілька варіантів
+                                  </MenuItem>
+                                </Select>
+                              </FormControl>
+                            </Box>
+                            <Tooltip title="Видалити питання">
+                              <IconButton
+                                color="error"
+                                onClick={() => removeQuestion(questionIndex)}
+                                disabled={isSaving}
+                                sx={{ ml: "auto" }}
+                              >
+                                <Trash2 size={20} />
+                              </IconButton>
+                            </Tooltip>
                           </Box>
-                          <FormControl sx={{ minWidth: 200 }}>
-                            <InputLabel>Тип питання</InputLabel>
-                            <Select
-                              value={question.type}
-                              label="Тип питання"
-                              onChange={(e) =>
-                                updateQuestion(
-                                  questionIndex,
-                                  "type",
-                                  e.target.value
-                                )
-                              }
+                          {(question.type === "single_choice" ||
+                            question.type === "multiple_choice") && (
+                            <Box
+                              sx={{
+                                pl: { xs: 0, md: 4 },
+                                pt: 1,
+                                width: "100%",
+                              }}
                             >
-                              <MenuItem value="text">
-                                Текстова відповідь
-                              </MenuItem>
-                              <MenuItem value="single_choice">
-                                Одиночний вибір
-                              </MenuItem>
-                              <MenuItem value="multiple_choice">
-                                Множинний вибір
-                              </MenuItem>
-                            </Select>
-                          </FormControl>
-                          <IconButton
-                            color="error"
-                            onClick={() => removeQuestion(questionIndex)}
-                          >
-                            <Trash2 />
-                          </IconButton>
-                        </Box>
-
-                        {(question.type === "single_choice" ||
-                          question.type === "multiple_choice") && (
-                          <Box sx={{ pl: 7, width: "100%" }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                              Варіанти відповідей:
-                            </Typography>
-                            <DragDropContext
-                              onDragEnd={(result) =>
-                                handleOptionDragEnd(questionIndex, result)
-                              }
-                            >
-                              <Droppable droppableId={`options-${question.id}`}>
-                                {(provided) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.droppableProps}
-                                  >
-                                    {question.options.map(
-                                      (option, optionIndex) => (
-                                        <Draggable
-                                          key={option.id}
-                                          draggableId={option.id}
-                                          index={optionIndex}
-                                        >
-                                          {(provided) => (
-                                            <Box
-                                              ref={provided.innerRef}
-                                              {...provided.draggableProps}
-                                              sx={{
-                                                display: "flex",
-                                                gap: 1,
-                                                mb: 1,
-                                                alignItems: "center",
-                                              }}
-                                            >
-                                              <IconButton
-                                                size="small"
-                                                {...provided.dragHandleProps}
+                              {" "}
+                              <DragDropContext
+                                onDragEnd={(result) =>
+                                  handleOptionDragEnd(questionIndex, result)
+                                }
+                              >
+                                <Droppable
+                                  droppableId={`options-${question.id}`}
+                                >
+                                  {(providedOptions) => (
+                                    <div
+                                      ref={providedOptions.innerRef}
+                                      {...providedOptions.droppableProps}
+                                    >
+                                      {question.options.map(
+                                        (option, optionIndex) => (
+                                          <Draggable
+                                            key={option.id}
+                                            draggableId={option.id}
+                                            index={optionIndex}
+                                          >
+                                            {(providedDraggableOption) => (
+                                              <Box
+                                                ref={
+                                                  providedDraggableOption.innerRef
+                                                }
+                                                {...providedDraggableOption.draggableProps}
+                                                sx={{
+                                                  display: "flex",
+                                                  gap: 1,
+                                                  mb: 1,
+                                                  alignItems: "center",
+                                                }}
                                               >
-                                                <GripVertical />
-                                              </IconButton>
-                                              <TextField
-                                                size="small"
-                                                fullWidth
-                                                label={`Варіант ${
-                                                  optionIndex + 1
-                                                }`}
-                                                value={option.option_text}
-                                                onChange={(e) =>
-                                                  updateOption(
-                                                    questionIndex,
-                                                    optionIndex,
-                                                    e.target.value
-                                                  )
-                                                }
-                                                error={
-                                                  !option.option_text.trim()
-                                                }
-                                                helperText={
-                                                  !option.option_text.trim()
-                                                    ? "Текст варіанту обов'язковий"
-                                                    : ""
-                                                }
-                                              />
-                                              <IconButton
-                                                size="small"
-                                                color="error"
-                                                onClick={() =>
-                                                  removeOption(
-                                                    questionIndex,
-                                                    optionIndex
-                                                  )
-                                                }
-                                              >
-                                                <Trash2 />
-                                              </IconButton>
-                                            </Box>
-                                          )}
-                                        </Draggable>
-                                      )
-                                    )}
-                                    {provided.placeholder}
-                                  </div>
-                                )}
-                              </Droppable>
-                            </DragDropContext>
-                            <Button
-                              startIcon={<Plus />}
-                              onClick={() => addOption(questionIndex)}
-                              sx={{ mt: 1 }}
-                            >
-                              Додати варіант
-                            </Button>
-                          </Box>
-                        )}
-                      </ListItem>
-                      <Divider />
+                                                <Box
+                                                  {...providedDraggableOption.dragHandleProps}
+                                                  sx={{
+                                                    cursor: "grab",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                  }}
+                                                >
+                                                  <GripVertical size={18} />
+                                                </Box>
+                                                <TextField
+                                                  size="small"
+                                                  fullWidth
+                                                  label={`Варіант ${
+                                                    optionIndex + 1
+                                                  }`}
+                                                  value={option.option_text}
+                                                  onChange={(e) =>
+                                                    updateOption(
+                                                      questionIndex,
+                                                      optionIndex,
+                                                      e.target.value
+                                                    )
+                                                  }
+                                                  error={
+                                                    !option.option_text.trim()
+                                                  }
+                                                  disabled={isSaving}
+                                                />
+                                                <Tooltip title="Видалити варіант">
+                                                  <IconButton
+                                                    size="small"
+                                                    color="error"
+                                                    onClick={() =>
+                                                      removeOption(
+                                                        questionIndex,
+                                                        optionIndex
+                                                      )
+                                                    }
+                                                    disabled={isSaving}
+                                                  >
+                                                    <Trash2 size={18} />
+                                                  </IconButton>
+                                                </Tooltip>
+                                              </Box>
+                                            )}
+                                          </Draggable>
+                                        )
+                                      )}
+                                      {providedOptions.placeholder}
+                                    </div>
+                                  )}
+                                </Droppable>
+                              </DragDropContext>
+                              <Button
+                                size="small"
+                                startIcon={<Plus size={16} />}
+                                onClick={() => addOption(questionIndex)}
+                                sx={{ mt: 1, textTransform: "none" }}
+                                disabled={isSaving}
+                              >
+                                Додати варіант
+                              </Button>
+                            </Box>
+                          )}
+                        </ListItem>
+                      </Paper>
                     </React.Fragment>
                   )}
                 </Draggable>
@@ -498,31 +755,48 @@ const QuestionnaireBuilder = () => {
         </Droppable>
       </DragDropContext>
 
+      {/* Кнопка Додати питання */}
       <Box sx={{ mt: 2, mb: 4 }}>
-        <Button variant="outlined" startIcon={<Plus />} onClick={addQuestion}>
+        <Button
+          variant="outlined"
+          startIcon={<Plus />}
+          onClick={addQuestion}
+          disabled={isSaving}
+        >
           Додати питання
         </Button>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
+      {/* Повідомлення про помилку збереження */}
+      {error && isSaving && (
+        <Alert severity="error" icon={<AlertCircle />} sx={{ mt: 2, mb: 2 }}>
           {error}
         </Alert>
       )}
 
+      {/* Кнопка Зберегти */}
       <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
         <Button
           variant="contained"
           color="primary"
           size="large"
-          startIcon={<Save />}
+          startIcon={
+            isSaving ? <CircularProgress size={20} color="inherit" /> : <Save />
+          }
           onClick={handleSave}
-          disabled={!title.trim() || questions.length === 0}
+          disabled={
+            isSaving || isLoading || !title.trim() || questions.length === 0
+          }
         >
-          Зберегти опитувальник
+          {isSaving
+            ? "Збереження..."
+            : questionnaireIdParam
+            ? "Оновити опитувальник"
+            : "Зберегти опитувальник"}
         </Button>
       </Box>
 
+      {/* Діалог Превью */}
       <Dialog
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
@@ -530,7 +804,8 @@ const QuestionnaireBuilder = () => {
         fullWidth
       >
         <DialogTitle>Превью опитувальника</DialogTitle>
-        <DialogContent>
+        <DialogContent dividers>
+          {" "}
           <Typography variant="h5" gutterBottom>
             {title}
           </Typography>
@@ -539,48 +814,63 @@ const QuestionnaireBuilder = () => {
               {description}
             </Typography>
           )}
-          {questions.map((question, index) => (
-            <Paper key={question.id} sx={{ p: 2, mb: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                {index + 1}. {question.text}
-              </Typography>
-              {question.type === "text" ? (
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={3}
-                  disabled
-                  placeholder="Місце для текстової відповіді"
-                />
-              ) : question.type === "single_choice" ? (
-                <FormControl component="fieldset">
-                  {question.options.map((option) => (
-                    <div key={option.id}>
-                      <input
-                        type="radio"
-                        disabled
-                        style={{ marginRight: "8px" }}
-                      />
-                      {option.option_text}
-                    </div>
-                  ))}
-                </FormControl>
-              ) : (
-                <FormControl component="fieldset">
-                  {question.options.map((option) => (
-                    <div key={option.id}>
-                      <input
-                        type="checkbox"
-                        disabled
-                        style={{ marginRight: "8px" }}
-                      />
-                      {option.option_text}
-                    </div>
-                  ))}
-                </FormControl>
-              )}
-            </Paper>
-          ))}
+          <List disablePadding>
+            {questions.map((question, index) => (
+              <ListItem
+                key={question.id}
+                sx={{ display: "block", mb: 2 }}
+                divider
+              >
+                {" "}
+                <Typography variant="h6" gutterBottom sx={{ mb: 1 }}>
+                  {index + 1}. {question.text || "(Питання без тексту)"}
+                </Typography>
+                {question.type === "text" ? (
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={3}
+                    disabled
+                    placeholder="Місце для текстової відповіді"
+                    variant="outlined"
+                  />
+                ) : question.type === "single_choice" ? (
+                  <FormControl
+                    component="fieldset"
+                    disabled
+                    sx={{ width: "100%" }}
+                  >
+                    <RadioGroup>
+                      {question.options.map((option) => (
+                        <FormControlLabel
+                          key={option.id}
+                          value={option.id}
+                          control={<Radio />}
+                          label={option.option_text || "(Варіант без тексту)"}
+                        />
+                      ))}
+                    </RadioGroup>
+                  </FormControl>
+                ) : (
+                  <FormControl
+                    component="fieldset"
+                    disabled
+                    sx={{ width: "100%" }}
+                  >
+                    <FormGroup>
+                      {question.options.map((option) => (
+                        <FormControlLabel
+                          key={option.id}
+                          control={<Checkbox />}
+                          label={option.option_text || "(Варіант без тексту)"}
+                        />
+                      ))}
+                    </FormGroup>
+                  </FormControl>
+                )}
+              </ListItem>
+            ))}
+          </List>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPreviewOpen(false)}>Закрити</Button>

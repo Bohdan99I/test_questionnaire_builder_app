@@ -1,6 +1,6 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { CssBaseline } from "@mui/material";
+import { CssBaseline, Box, CircularProgress } from "@mui/material";
 import Layout from "./components/Layout";
 import QuestionnaireCatalog from "./pages/QuestionnaireCatalog";
 import QuestionnaireBuilder from "./pages/QuestionnaireBuilder";
@@ -23,7 +23,18 @@ function AppContent() {
   const { loading } = useAuth();
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
   }
 
   return (
@@ -83,7 +94,7 @@ function App() {
       <ThemeProvider>
         <CssBaseline />
         <AuthProvider>
-          <AppContent />
+          <AppContent />{" "}
         </AuthProvider>
       </ThemeProvider>
     </StoreProvider>

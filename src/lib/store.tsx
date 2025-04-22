@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from "react";
+import React, { createContext, useContext, useReducer } from "react";
 import {
   User,
   Questionnaire,
@@ -204,23 +204,24 @@ const StoreContext = createContext<{
 } | null>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
+  // Стан ініціалізується за допомогою loadState одразу
   const [state, dispatch] = useReducer(reducer, initialState, loadState);
 
-  useEffect(() => {
-    // Відновлення сесії користувача при завантаженні
-    const savedState = loadState();
-    if (savedState.currentUser) {
-      dispatch({ type: "SET_CURRENT_USER", payload: savedState.currentUser });
-    }
-  }, []);
+  // Мемоізація значення контексту
+  const contextValue = React.useMemo(
+    () => ({ state, dispatch }),
+    [state, dispatch]
+  );
 
   return (
-    <StoreContext.Provider value={{ state, dispatch }}>
+    <StoreContext.Provider value={contextValue}>
       {children}
     </StoreContext.Provider>
   );
 }
 
+// Хук для використання стану
+// eslint-disable-next-line react-refresh/only-export-components
 export function useStore() {
   const context = useContext(StoreContext);
   if (!context) {

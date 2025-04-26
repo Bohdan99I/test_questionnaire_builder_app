@@ -5,6 +5,22 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    exclude: ['lucide-react'],
+    exclude: [
+      'lucide-react',
+      'mock-aws-s3',
+      'aws-sdk',
+      'nock',
+      '@mapbox/node-pre-gyp'
+    ],
   },
+  build: {
+    rollupOptions: {
+      external: [
+        'mock-aws-s3',
+        'aws-sdk',
+        'nock',
+        '@mapbox/node-pre-gyp'
+      ]
+    }
+  }
 });

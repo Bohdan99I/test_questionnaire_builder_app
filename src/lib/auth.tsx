@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import bcrypt from "bcryptjs";
 import { User } from "./types";
 import { useStore } from "./store";
 
@@ -26,6 +27,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) {
       throw new Error("Користувача не знайдено");
     }
+
+    const passwordMatch = await bcrypt.compare(password, user.password!);
+    if (!passwordMatch) {
+      throw new Error("Невірний пароль");
+    }
+
     dispatch({ type: "SET_CURRENT_USER", payload: user });
   };
 
@@ -33,10 +40,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (state.users.some((u) => u.email === email)) {
       throw new Error("Користувач вже існує");
     }
+
+    const hashedPassword = await bcrypt.hash(password, 10); // хешуємо пароль
+
     const newUser: User = {
       id: crypto.randomUUID(),
       email,
+      password: hashedPassword, // зберігаємо хеш, а не звичайний пароль
     };
+
     dispatch({ type: "ADD_USER", payload: newUser });
     dispatch({ type: "SET_CURRENT_USER", payload: newUser });
   };
@@ -60,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

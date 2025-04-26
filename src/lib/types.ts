@@ -3,6 +3,7 @@ export type QuestionType = 'text' | 'single_choice' | 'multiple_choice';
 export interface User {
   id: string;
   email: string;
+  password?: string;
 }
 
 export interface Questionnaire {

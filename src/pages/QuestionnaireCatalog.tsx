@@ -83,7 +83,6 @@ const QuestionnaireCatalog = () => {
   }, [userQuestionnaires, state.questions, state.responses]);
 
   // --- Обробники дій ---
-
   const openConfirmDelete = useCallback((id: string) => {
     setDeletingId(id);
     setShowConfirmDelete(true);

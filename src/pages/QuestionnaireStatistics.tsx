@@ -83,7 +83,6 @@ const QuestionnaireStatistics = () => {
   }, [state.questionOptions, questions]);
 
   // --- Обчислення статистики ---
-
   const averageTimeSeconds = useMemo(() => {
     if (responses.length === 0) return 0;
     const totalTime = responses.reduce(
@@ -152,7 +151,6 @@ const QuestionnaireStatistics = () => {
   }, [questions, relevantAnswers, relevantOptions]);
 
   // --- Рендеринг ---
-
   if (!questionnaire) {
     return (
       <Alert severity="error" sx={{ m: 3 }}>
@@ -239,6 +237,7 @@ const QuestionnaireStatistics = () => {
               ? "Один варіант"
               : "Кілька варіантів"}{" "}
             | Всього відповідей: {stat.totalAnswers}
+            
             {/* Показуємо загальну кількість виборів для multiple_choice */}
             {stat.type === "multiple_choice" &&
               ` | Всього обрано варіантів: ${stat.totalSelections}`}

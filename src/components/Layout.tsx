@@ -69,6 +69,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <AppBar position="static" elevation={1}>
         {" "}
         <Toolbar>
+
           {/* Логотип та Назва */}
           <Box sx={{ display: "flex", alignItems: "center", flexGrow: 1 }}>
             <ClipboardList size={24} style={{ marginRight: "12px" }} />
@@ -193,6 +194,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           )}
         </Toolbar>
       </AppBar>
+      
       {/* Основний контент сторінки */}
       <Container maxWidth="lg" sx={{ pt: 3, pb: 4 }}>
         {" "}

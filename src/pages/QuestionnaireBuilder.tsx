@@ -71,7 +71,7 @@ const QuestionnaireBuilder = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  // --- Завантаження даних для редагування ---
+  //Завантаження даних для редагування 
   useEffect(() => {
     if (questionnaireIdParam && !isDataLoaded) {
       setIsLoading(true);
@@ -134,7 +134,7 @@ const QuestionnaireBuilder = () => {
     navigate,
   ]);
 
-  // --- Функції для управління станом конструктора опитувальників ---
+  //Функції для управління станом конструктора опитувальників 
   const addQuestion = useCallback(() => {
     setQuestions((prevQuestions) => [
       ...prevQuestions,
@@ -246,7 +246,7 @@ const QuestionnaireBuilder = () => {
     []
   );
 
-  // --- Обробники Drag & Drop ---
+  //Обробники Drag & Drop 
   const handleDragEnd = useCallback((result: DropResult) => {
     if (!result.destination) return;
 
@@ -282,13 +282,13 @@ const QuestionnaireBuilder = () => {
     []
   );
 
-  // --- Збереження опитувальника ---
+  // Збереження опитувальника 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     setError(null);
 
     try {
-      // --- Валідація ---
+      //Валідація 
       if (!user?.id) {
         throw new Error("Користувач не автентифікований. Неможливо зберегти.");
       }
@@ -330,7 +330,7 @@ const QuestionnaireBuilder = () => {
         }
       }
 
-      // --- Логіка збереження опитувальника ---
+      // Логіка збереження опитувальника 
       const finalQuestionnaireId = questionnaireIdParam || crypto.randomUUID();
 
       // 1. Оновлюємо або додаємо сам опитувальник
@@ -429,7 +429,7 @@ const QuestionnaireBuilder = () => {
     state.questionOptions,
   ]);
 
-  // --- Рендеринг ---
+  // Рендеринг
   if (isLoading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", mt: 5 }}>

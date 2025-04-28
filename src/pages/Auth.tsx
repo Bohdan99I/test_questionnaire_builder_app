@@ -25,7 +25,7 @@ const Auth = () => {
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
 
-  // --- Покращені функції валідації ---
+  // Оголошення функції валідації 
   const validateEmail = (emailInput: string): string | null => {
     if (!emailInput.trim()) {
       return "Email не може бути порожнім";
@@ -47,7 +47,7 @@ const Auth = () => {
     return null;
   };
 
-  // --- Обробка зміни полів з валідацією помилок ---
+  // Обробка зміни полів з валідацією помилок 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setEmail(newValue);
@@ -66,7 +66,7 @@ const Auth = () => {
     }
   };
 
-  // --- Скидання помилок при зміні режиму ---
+  // Скидання помилок при зміні режиму 
   const toggleMode = () => {
     setIsSignUp(!isSignUp);
     setEmail("");
@@ -77,13 +77,13 @@ const Auth = () => {
     setIsLoading(false);
   };
 
-  // --- Функція обробник відправки ---
+  // Функція обробник відправки 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setGeneralError(null);
     setIsLoading(true);
 
-    // --- Валідація перед відправкою ---
+    // Валідація перед відправкою 
     const currentEmailError = validateEmail(email);
     const currentPasswordError = validatePassword(password);
 
@@ -168,7 +168,7 @@ const Auth = () => {
                   <span id="email-error-text" style={{ display: "none" }}>
                     {emailError}
                   </span>
-                ) /* Для screen readers */
+                ) 
               }
 
               <TextField
@@ -204,6 +204,7 @@ const Auth = () => {
                 >
                   {isSignUp ? "Зареєструватися" : "Увійти"}
                 </Button>
+                
                 {/* Індикатор завантаження поверх кнопки */}
                 {isLoading && (
                   <CircularProgress
